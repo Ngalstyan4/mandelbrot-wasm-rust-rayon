@@ -12,3 +12,6 @@ build:
 	echo "Generating bindings"
 	rm -r pkg
 	$(WASM_BINDGEN) ./target/wasm32-unknown-unknown/release/beh.wasm  --out-dir $(PKG_DIR) --target no-modules
+
+serve:
+	python -m http.server

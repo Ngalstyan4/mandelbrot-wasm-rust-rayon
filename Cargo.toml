@@ -12,32 +12,6 @@ crate-type=["cdylib"]
 [dependencies]
 console_error_panic_hook = "0.1"
 rayon="1.3.0"
-# todo: remove next two
-#rayon-core = "1.5.0"
-#wasm-bindgen-futures = {path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen", version="0.4.13"}
-
-#wasm-bindgen= { path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen", features = ['serde-serialize'] }
-#js-sys = { path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen/crates/js-sys"}
-#[dependencies.web-sys]
-#path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen/crates/web-sys"
-##version = "0.3.23"
-#features = [
-#  'CanvasRenderingContext2d',
-#  'ErrorEvent',
-#  'Event',
-#  'ImageData',
-#  'Navigator',
-#  'Window',
-#  'Worker',
-#  'DedicatedWorkerGlobalScope',
-#  'MessageEvent',
-#]
-#
-#[patch.crates-io]
-#wasm-bindgen = {path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen"}
-#js-sys = { path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen/crates/js-sys"}
-#web-sys = { path="/Users/ngalstyan/Desktop/SIMD.js/wasm-bindgen/crates/web-sys"}
-
 
 #https://github.com/rustwasm/wasm-bindgen.git
 
