@@ -28,6 +28,8 @@
           <span>v2 =</span><span id="v2"></span>
           <h3>Result:dot(v1,v2)= <span id="dotResult"></span></h3>
           <h3>JS Result:dot(v1,v2)= <span id="dotResultJS"></span></h3>
+
+        <canvas id="screen"></canvas>
     </div>
 
 
@@ -52,17 +54,24 @@
 
         // import init, {Scene, WorkerPool} from "/pkg/beh.js";
         // --no-modules
+        let canvas = document.getElementById("screen");
+        let ctx = canvas.getContext('2d');
         const {Scene, WorkerPool} = wasm_bindgen;
         let wasm;
+
+        canvas.width = 400;
+        canvas.height = 300;
         async function run() {
           wasm = await wasm_bindgen("./pkg/beh_bg.wasm");
           console.log("build scene!");
 
-            let s = new Scene();
-            let pool = new WorkerPool(4);
-          // console.log("Rendering!d");
-
-          // s.render(3,pool);
+          let s = new Scene();
+          let pool = new WorkerPool(4);
+          console.log("Rendering!d");
+          s.render(12,pool).promise().then(data => {
+            ctx.putImageData(data, 0, 0);
+            console.log(data.data);
+          }) ;
         }
         run();
 
