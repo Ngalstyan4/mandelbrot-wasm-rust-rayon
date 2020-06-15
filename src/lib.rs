@@ -87,6 +87,9 @@ impl Scene {
                 thread_pool.install(|| {
                     (*nums.0.get())
                         .par_chunks_mut(4).enumerate().for_each(|(i, chunk)| {
+                        if chunk.len() != 4 {
+                            return;
+                        }
                         let x = (i as f64 % width  - width/2.) / scale - dx;
                         let y = (i as f64 / width  - height/2.) / scale - dy;
                         let mut z = Complex { x: 0., y: 0. };
@@ -98,7 +101,8 @@ impl Scene {
                             if z.magsq() > 4. { break }
                         }
                         if iter < num_iter {
-                            let v = 255 - (255. * iter as f32 / num_iter as f32) as u8;
+                            let contIter = z.magsq().log2().log2();
+                            let v = 255 - ((num_iter as f64 - contIter)*255./num_iter as f64) as u8 + 5;
                             chunk[0] = v;
                             chunk[1] = v;
                             chunk[2] = v;
@@ -107,8 +111,6 @@ impl Scene {
                             chunk[1] = 0;
                             chunk[2] = 0;
                         }
-                        // chunk[1] = 0;
-                        // chunk[2] = 0;
                         chunk[3] = 255;
                     });
                 });
@@ -162,6 +164,7 @@ impl Complex {
 use std::ops::{Mul, Add};
 use rayon::ThreadPool;
 use wasm_bindgen::__rt::std::sync::Mutex;
+use js_sys::Math::random;
 
 impl Mul for Complex {
     type Output = Complex;

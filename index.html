@@ -5,9 +5,6 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WASM Mantelbrot</title>
-
-<!-- Latest compiled and minified CSS -->
-<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">-->
   <style>
     canvas{
       background-color: transparent;
@@ -20,9 +17,13 @@
       /*opacity: 60%;*/
       position: absolute;
       left: 20px;
+      -webkit-mask-image: -webkit-gradient(linear, left top, left bottom,
+      from(rgba(0,0,0,.8)), to(rgba(0,0,0,0)));
     }
     #history:hover {
-      opacity: 60%;
+      opacity: 80%;
+      -webkit-mask-image: -webkit-gradient(linear, left top, left bottom,
+      from(rgba(0,0,0,1)), to(rgba(0,0,0,0.8)));
     }
   </style>
   </head>
@@ -30,188 +31,11 @@
   <canvas id="screen" style="z-index: 1;"></canvas>
   <canvas id="controls" style="z-index: 2;"></canvas>
   <canvas id="history" style="z-index: 2;"></canvas>
-  <div id="gui" style="z-index:3; position: absolute; right: 10px; opacity: 70%"></div>
-
-
-
-
+  <div id="gui" style="z-index:3; position: absolute; right: 10px; opacity: 70%">
+    <h2 id="renderTime">Render Time:</h2>
+  </div>
   <script type="text/javascript" src="dat.gui.min.js"></script>
   <script src="/pkg/beh.js"></script>
-  <script>
-    let canvas = document.getElementById("screen");
-    let ctx = canvas.getContext('2d');
-    let canvasControls = document.getElementById("controls");
-    let ctrl_ctx = canvasControls.getContext('2d');
-    let historyCanvas = document.getElementById("history");
-    let history_ctx = historyCanvas.getContext('2d');
-
-
-    const {Scene, WorkerPool} = wasm_bindgen;
-    let wasm;
-    async function run(width,height,threads) {
-      canvas.width = width;
-      canvas.height = height;
-      canvasControls.width = width;
-      canvasControls.height = height;
-      historyCanvas.width = width/4;
-      historyCanvas.height = height;
-
-
-      wasm = await wasm_bindgen("./pkg/beh_bg.wasm");
-      console.log("build scene!");
-      let pool = new WorkerPool(threads);
-      let s = new Scene(width, height, threads, pool);
-      console.log("Rendering!d");
-
-
-      let Controls = function() {
-        this.scale = 305.;
-        this.dx = 1;
-        this.dy = 0;
-        this.iter = 80;
-      };
-
-      function downscale(arr, factor) {
-        let res = new Uint8ClampedArray(Math.floor(width/factor) * Math.floor(height/factor) * 4);
-        let ind = 0;
-        for (let i = 0; i < arr.length; i += 4) {
-          let y = Math.floor((i/4) / width);
-          if (y % factor !== 0) continue;
-          let x = (i/4) % width;
-          if (x % factor !== 0) continue;
-            res[ind++] = arr[i]+10;
-            res[ind++] = arr[i+1]*1.1;
-            res[ind++] = arr[i+2]+30;
-            res[ind++] = arr[i+3];
-          }
-        console.log("res len", res.length, ind, arr.length);
-        return res;
-      }
-
-      let HistoryItem = function(controls) {
-        this.controls = Object.assign({}, controls);
-        let factor = 5;
-        this.width = width/factor;
-        this.height = height/factor;
-        this.buffer = downscale(ctx.getImageData(0,0,width, height).data, factor);
-        this.buffer = new ImageData(this.buffer, width/factor, height/factor);
-      };
-
-      let renderHistory = function() {
-        history_ctx.clearRect(0,0, history_ctx.width, history_ctx.height);
-        let HISTORY_COUNT = 6;
-        let TOP_MARGIN = 20;
-        let lastInd = Math.max(0, history.length - HISTORY_COUNT);
-        for (let i = history.length - 1; i >= lastInd; i--) {
-          history_ctx.putImageData(history[i].buffer, 0,TOP_MARGIN + (history.length - 1 - i) * history[i].height);
-        }
-      };
-      let history = [];
-      let controls = new Controls();
-
-      let rndr = () => {
-        let {scale, dx, dy, iter} = controls;
-        let interval = setInterval(() => {
-          ctx.putImageData(s.getBuffer(), 0, 0);
-          console.log("update buffer");
-        }, 10);
-        s.render(pool, scale, dx, dy, iter).then(_ => {
-          clearInterval(interval);
-          ctx.putImageData(s.getBuffer(), 0, 0);
-        });
-        renderHistory();
-      };
-      rndr();
-
-      let gui = new dat.GUI({ autoPlace: false });
-      let customContainer = document.getElementById('gui');
-      customContainer.appendChild(gui.domElement);
-      gui.add(controls, 'scale',0,10000).onChange(rndr);
-      gui.add(controls, 'dx').onChange(rndr);
-      gui.add(controls, 'dy').onChange(rndr);
-      gui.add(controls, 'iter',0,10000).onChange(rndr);
-
-      let box = null;
-      window.onmousedown = function(e)
-      {
-        console.log("down");
-        if ( box == null )
-          // create a box with zero area to make sure we do not zoom in when there is just a click
-          box = [e.clientX, e.clientY, e.clientX, e.clientY];
-      };
-
-      window.onmousemove = function(e)
-      {
-        if ( box != null ) {
-
-          ctrl_ctx.lineWidth = 1;
-
-          // clear out old box first
-          ctrl_ctx.clearRect(0, 0, canvasControls.width, canvasControls.height);
-
-          // draw new box
-          ctrl_ctx.strokeStyle = '#ff964d';
-          box[2] = e.clientX;
-          box[3] = e.clientY;
-          ctrl_ctx.strokeRect(box[0], box[1], box[2]-box[0], box[3]-box[1]);
-        }
-      }
-
-
-
-      window.onmouseup = function(e)
-      {
-        const BOX_AREA_THRESHHOLD = 500;
-        ctrl_ctx.clearRect(0, 0, canvasControls.width, canvasControls.height);
-
-        if ( box != null ) {
-          let area = (box) => Math.abs(box[0] - box[2]) * Math.abs(box[1] - box[3]);
-          if (area(box) < BOX_AREA_THRESHHOLD) {
-            box = null;
-            return;
-          }
-
-          console.log("area is", area(box));
-
-          let item = new HistoryItem(controls);
-          history.push(item);
-
-          let x =   Math.min(box[0], box[2]) + Math.abs(box[0] - box[2])/2 - width/2;
-          let y =   Math.min(box[1], box[3]) + Math.abs(box[1] - box[3])/2 -  height/2;
-          controls.dx += -x/controls.scale;
-          controls.dy += -y/controls.scale;
-          controls.scale /= Math.abs(box[0]-box[2])/width;
-
-          rndr();
-
-          var xf = Math.abs(Math.abs(box[0]-box[2])/canvas.width);
-          var yf = Math.abs(Math.abs(box[1]-box[3])/canvas.height);
-
-          box = null;
-        }
-      }
-
-
-
-    }
-    run(window.innerWidth, window.innerHeight, 8);
-
-
-
-
-
-    window.addEventListener( 'resize', onWindowResize, false );
-
-    function onWindowResize(){
-      let canvas = document.getElementById("screen");
-
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      console.log("Window Resize Called");
-      run(window.innerWidth, window.innerHeight, 8);
-
-    }
-    </script>
-
+  <script src="main.js"></script>
   </body>
 </html>
