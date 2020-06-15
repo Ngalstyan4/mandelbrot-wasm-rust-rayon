@@ -18,9 +18,19 @@ extern "C" {
     fn logv(x: &JsValue);
 }
 
+// #[derive(Clone)]
+struct FrameBuffer(std::cell::UnsafeCell<Vec<u8>>);
+
+unsafe impl Sync for FrameBuffer {}
+
 #[wasm_bindgen]
 pub struct Scene {
-    inner: i32
+    pub width: i32,
+    pub height: i32,
+    concurrency: usize,
+    pool: std::sync::Arc<ThreadPool>,
+    framebuffer: std::sync::Arc<FrameBuffer>,
+    // framebuff: Uint8ClampedArray,
 }
 
 #[wasm_bindgen]
@@ -28,10 +38,24 @@ impl Scene {
     /// Creates a new scene from the JSON description in `object`, which we
     /// deserialize here into an actual scene.
     #[wasm_bindgen(constructor)]
-    pub fn new(_object: &JsValue) -> Result<Scene, JsValue> {
+    pub fn new(width: i32, height: i32, threads: usize, pool: &pool::WorkerPool) -> Result<Scene, JsValue> {
         console_error_panic_hook::set_once();
+
+        // using vec! because the values needs to be heap allocated so it can be sent to another worker
+        // and be reflected in *memory* of wasm ??i think?..??
+        let mut nums = vec![0 as u8;(4* width * height) as usize];
+
+        // Configure a rayon thread pool which will pull web workers from
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .spawn_handler(|thread| Ok(pool.run(|| thread.run()).unwrap()))
+            .build()
+            .unwrap();
+
         Ok(Scene {
-            inner: 42,
+            width, height, concurrency: threads,
+            pool: std::sync::Arc::new(thread_pool),
+            framebuffer: std::sync::Arc::new(FrameBuffer(std::cell::UnsafeCell::new(nums))),
         })
     }
 
@@ -41,89 +65,103 @@ impl Scene {
     /// spawned into `pool`. The `RenderingScene` state contains information to
     /// get notifications when the render has completed.
     pub fn render(
-        self,
-        concurrency: usize,
+        &mut self,
         pool: &pool::WorkerPool,
-    ) -> Result<RenderingScene, JsValue> {
+        scale: f64,
+        dx: f64,
+        dy: f64,
+        num_iter: i32,
+    ) -> Result<Promise, JsValue> {
         console_log!("in_render");
-
-        // using vec! because the values needs to be heap allocated so it can be sent to another worker
-        // and be reflected in *memory* of wasm ??i think?..??
-        let mut nums = vec![0 as u8;4*300*400];
-
-        // Configure a rayon thread pool which will pull web workers from
-        // `pool`.
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(concurrency)
-            .spawn_handler(|thread| Ok(pool.run(|| thread.run()).unwrap()))
-            .build()
-            .unwrap();
+        // let nums = &self.framebuffer;
+        // let mut nums = vec![0;5];
+        let mut nums = self.framebuffer.clone();
+        let thread_pool = self.pool.clone();
+        let width = self.width as f64;
+        let height = self.height as f64;
 
 
-        let (tx, rx) = oneshot::channel();
-        pool.run(move || {
-            thread_pool.install(|| {
-                nums.par_chunks_mut(4).enumerate().for_each(|(i,chunk )| {
-                    let scale = 100.;
-                    let x = i as f32 % 300. / scale - 1.8;
-                    let y = i as f32 / 300. / scale - 0.8;
-                    let mut z = Complex{x:0.,y:0.};
-                    let cmlx = Complex{x,y};
-                    let NUM_ITER = 100000;
-                    let mut escaped = false;
-                    for i in 0..NUM_ITER {
-                        z = z * z + cmlx;
-                        if z.magsq() > 4. {escaped = true; break}
-                    }
-                    if escaped{
-                        chunk[0] = 255;
-                    } else {
-                        chunk[0] = 0;
-                    }
-                    chunk[1] = 0;
-                    chunk[2] = 0;
-                    chunk[3] = 255;
-
+        unsafe {
+            let (tx, rx) = oneshot::channel();
+            pool.run(move || {
+                thread_pool.install(|| {
+                    (*nums.0.get())
+                        .par_chunks_mut(4).enumerate().for_each(|(i, chunk)| {
+                        let x = (i as f64 % width  - width/2.) / scale - dx;
+                        let y = (i as f64 / width  - height/2.) / scale - dy;
+                        let mut z = Complex { x: 0., y: 0. };
+                        let cmlx = Complex { x, y };
+                        let mut iter = 0;
+                        for i in 0..num_iter {
+                            iter += 1;
+                            z = z * z + cmlx;
+                            if z.magsq() > 4. { break }
+                        }
+                        if iter < num_iter {
+                            let v = 255 - (255. * iter as f32 / num_iter as f32) as u8;
+                            chunk[0] = v;
+                            chunk[1] = v;
+                            chunk[2] = v;
+                        } else {
+                            chunk[0] = 0;
+                            chunk[1] = 0;
+                            chunk[2] = 0;
+                        }
+                        // chunk[1] = 0;
+                        // chunk[2] = 0;
+                        chunk[3] = 255;
+                    });
                 });
-            });
-            drop(tx.send(nums));
+                drop(tx.send(nums));
+            })?;
 
-        })?;
-        console_log!("waiting for done");
+            console_log!("waiting for done");
 
-        let done = async move {
-            console_log!("done!");
-            match rx.await {
 
-                Ok(_data) => {
-                    // console_log!("got data  {}", _data);
-                    let mem = wasm_bindgen::memory().unchecked_into::<WebAssembly::Memory>();
-                    console_log!("data0 {} data1 {} dataLen{}", _data[0], _data[1], _data.len());
-                    let mem = Uint8ClampedArray::new(&mem.buffer()).slice(_data.as_ptr() as u32, _data.as_ptr() as u32 + _data.len() as u32);
-                    let res = ImageData::new(&mem, 300.,400.).unwrap();
-                    Ok(res.into())
+            let done = async move {
+                console_log!("done!");
+                match rx.await {
+                    Ok(_data) => {
+                        let res = 42;//ImageData::new(&mem, width, height).unwrap();
+                        Ok(res.into())
+                    }
+                    Err(_) => {
+                        console_log!("errror");
+                        Err(JsValue::undefined())
+                    },
                 }
-                Err(_) =>  {console_log!("errror") ;Err(JsValue::undefined())},
-            }
-        };
+            };
 
-        Ok(RenderingScene{promise: wasm_bindgen_futures::future_to_promise(done)})
+            Ok(wasm_bindgen_futures::future_to_promise(done))
+        }
+    }
 
+    pub fn getBuffer(&self) -> ImageData {
+        let mem = wasm_bindgen::memory().unchecked_into::<WebAssembly::Memory>();
+        unsafe {
+            let base = (*self.framebuffer.0.get()).as_ptr() as u32;
+            let length = (self.width * self.height * 4) as u32;
+            let mem = Uint8ClampedArray::new(&mem.buffer()).slice(base, (base + length));
+            let res = ImageData::new(&mem, self.width as f64, self.height as f64).unwrap();
+            res.into()
+        }
     }
 
 }
 
 #[derive(Copy, Clone)]
 struct Complex{
-    x: f32,
-    y: f32,
+    x: f64,
+    y: f64,
 }
 
 impl Complex {
-    pub fn magsq(&self) -> f32 {(self.x * self.x + self.y * self.y)}
+    pub fn magsq(&self) -> f64 {(self.x * self.x + self.y * self.y)}
 }
 
 use std::ops::{Mul, Add};
+use rayon::ThreadPool;
+use wasm_bindgen::__rt::std::sync::Mutex;
 
 impl Mul for Complex {
     type Output = Complex;
@@ -145,17 +183,19 @@ impl Add for Complex {
     }
 }
 
-#[wasm_bindgen]
-pub struct RenderingScene {
-    promise: Promise,
-}
-
-#[wasm_bindgen]
-impl RenderingScene {
-    pub fn promise(&self) -> Promise {
-        self.promise.clone()
-    }
-}
+// #[wasm_bindgen]
+// pub struct RenderingScene {
+//     promise: Promise,
+// }
+//
+// #[wasm_bindgen]
+// impl RenderingScene {
+//     pub fn promise(&self) -> Promise {
+//         self.promise.clone()
+//     }
+//
+//
+// }
 //
 #[wasm_bindgen]
 extern "C" {
@@ -165,7 +205,3 @@ extern "C" {
     pub fn new(data: &Uint8ClampedArray, width: f64, height: f64) -> Result<ImageData, JsValue>;
 
 }
-//
-// fn create_compute() -> ComputeResult {
-//     ComputeResult::new()
-// }
