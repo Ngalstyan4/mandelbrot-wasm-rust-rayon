@@ -10,6 +10,7 @@ crate-type=["cdylib"]
 
 
 [dependencies]
+wee_alloc = "0.4.5"
 console_error_panic_hook = "0.1"
 rayon="1.3.0"
 futures-channel-preview = "0.3.0-alpha.18"
@@ -38,3 +39,9 @@ features = [
 wasm-bindgen = {git="https://github.com/rustwasm/wasm-bindgen.git"}
 js-sys = {git="https://github.com/rustwasm/wasm-bindgen.git"}
 web-sys = {git="https://github.com/rustwasm/wasm-bindgen.git"}
+
+[profile.release]
+opt-level = 3
+
+[profile.dev]
+opt-level = 0

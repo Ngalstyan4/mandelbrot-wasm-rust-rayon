@@ -1,3 +1,6 @@
+// #![feature(wasm_target_feature)]
+// #![feature(stdsimd)]
+
 use futures_channel::oneshot;
 use js_sys::{Promise, Uint8ClampedArray, WebAssembly};
 use rayon::prelude::*;
@@ -9,6 +12,12 @@ macro_rules! console_log {
 }
 
 mod pool;
+
+extern crate wee_alloc;
+
+// Use `wee_alloc` as the global allocator.
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 extern "C" {
@@ -58,6 +67,23 @@ impl Scene {
             framebuffer: std::sync::Arc::new(FrameBuffer(std::cell::UnsafeCell::new(nums))),
         })
     }
+    // #[cfg(target_arch = "wasm32")]
+    // #[target_feature(enable = "simd128")]
+    // //https://github.com/rust-lang/stdarch/blob/ec6fccd34c30003a7ebf4e7a9dfe4e31f5b76e1b/crates/core_arch/src/wasm32/mod.rs
+    // unsafe fn _dot_simd(&self) -> i32 {
+    //     use core::arch::wasm32::*;
+    //     // core::arch::wasm32::memory_size(3);
+    //     // core::arch::wasm32::i32x4_splat(32);
+    //     //
+    //     // let a = i32x4_splat(4);
+    //     // let b = i32x4_splat(8);
+    //     // let sum = i32x4_add(a,b);
+    //
+    //     // v128_load(self.get_v1());
+    //     // i32x4_extract_lane(sum, 0)
+    //     42
+    // }
+
 
     /// Renders this scene with the provided concurrency and worker pool.
     ///
@@ -71,8 +97,9 @@ impl Scene {
         dx: f64,
         dy: f64,
         num_iter: i32,
+        color_mode: u8,
+        color_threads: bool,
     ) -> Result<Promise, JsValue> {
-        console_log!("in_render");
         // let nums = &self.framebuffer;
         // let mut nums = vec![0;5];
         let mut nums = self.framebuffer.clone();
@@ -80,7 +107,7 @@ impl Scene {
         let width = self.width as f64;
         let height = self.height as f64;
 
-
+        // unsafe{self._dot_simd();}
         unsafe {
             let (tx, rx) = oneshot::channel();
             pool.run(move || {
@@ -101,8 +128,12 @@ impl Scene {
                             if z.magsq() > 4. { break }
                         }
                         if iter < num_iter {
-                            let contIter = z.magsq().log2().log2();
-                            let v = 255 - ((num_iter as f64 - contIter)*255./num_iter as f64) as u8 + 5;
+                            let contIter = z.magsq().sqrt().log2().log2();
+
+                            let v:u8 =
+                                if color_mode == 0 {((num_iter as f64 - iter as f64)*255./(num_iter) as f64) as u8 + (contIter - iter as f64) as u8}
+                                else if color_mode == 1 {((iter as f64 - contIter as f64)*255./(num_iter) as f64) as u8}
+                                else {255};
                             chunk[0] = v;
                             chunk[1] = v;
                             chunk[2] = v;
@@ -112,16 +143,22 @@ impl Scene {
                             chunk[2] = 0;
                         }
                         chunk[3] = 255;
+                        if (color_threads) {
+                            let thread_id = thread_pool.current_thread_index().unwrap();
+                            chunk[0] += if thread_id & 1 != 0 { 50 } else { 0 };
+                            chunk[1] += if thread_id & 2 != 0 { 50 } else { 0 };
+                            chunk[2] += if thread_id & 4 != 0 { 50 } else { 0 };
+                        }
                     });
                 });
                 drop(tx.send(nums));
             })?;
 
-            console_log!("waiting for done");
+            // console_log!("waiting for done");
 
 
             let done = async move {
-                console_log!("done!");
+                // console_log!("done!");
                 match rx.await {
                     Ok(_data) => {
                         let res = 42;//ImageData::new(&mem, width, height).unwrap();

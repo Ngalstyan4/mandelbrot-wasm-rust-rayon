@@ -32,10 +32,20 @@
   <canvas id="controls" style="z-index: 2;"></canvas>
   <canvas id="history" style="z-index: 2;"></canvas>
   <div id="gui" style="z-index:3; position: absolute; right: 10px; opacity: 70%">
-    <h2 id="renderTime">Render Time:</h2>
+    <h2 id="renderTime" style="color: aqua">Render Time:</h2>
+    <button id="undo" onClick="undo()" style="color: crimson; margin-top: -20px; margin-bottom: 10px" disabled>Undo</button>
+    <button onClick="rndr()" style="margin-top: -20px; margin-bottom: 10px">Render</button>
+    <a id="download" download="Canvas.png" onclick="downloadPng()" href="#" style="color: aqua; margin-top: -20px; margin-bottom: 10px; margin-left: 20px"><span>Download PNG</span></a>
+    <div>
+      <button onClick="startAnimate()" style="margin-top: -20px; margin-bottom: 10px">Animate</button>
+      <button onClick="stopAnimate()" style="margin-top: -20px; margin-bottom: 10px">Stop Animate</button>
+    </div>
+
   </div>
+  <div id="stats"></div>
   <script type="text/javascript" src="dat.gui.min.js"></script>
-  <script src="/pkg/beh.js"></script>
+  <script type="text/javascript" src="stats.min.js"></script>
+  <script src="pkg/beh.js"></script>
   <script src="main.js"></script>
   </body>
 </html>
