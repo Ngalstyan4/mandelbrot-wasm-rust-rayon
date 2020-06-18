@@ -15,7 +15,7 @@ build:
 	$(WASM_BINDGEN) ./target/wasm32-unknown-unknown/release/beh.wasm  --out-dir $(PKG_DIR) --target no-modules
 
 simd:
-	RUSTFLAGS=' -C target-feature=+atomics,+simd128,+bulk-memory -Cno-vectorize-loops -Cno-vectorize-slp -Copt-level=z' \
+	RUSTFLAGS=' -C target-feature=+atomics,+simd128,+bulk-memory -Cno-vectorize-loops -Cno-vectorize-slp -Copt-level=z -Clinker-flavor=em' \
 	cargo build --target wasm32-unknown-unknown -Z build-std=std,panic_abort
 	echo "Generating bindings"
 	rm -r pkg

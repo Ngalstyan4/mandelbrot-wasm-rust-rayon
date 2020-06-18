@@ -1,5 +1,5 @@
 [package]
-name = "beh"
+name = "Mandelbrot-wasm"
 version = "0.1.0"
 authors = ["Narek Galstyan <narekg@princeton.edu>"]
 edition = "2018"
