@@ -11,4 +11,3 @@ yarn.lock
 /publish
 /publish.exe
 .vscode
-pkg/
