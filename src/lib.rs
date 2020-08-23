@@ -187,7 +187,6 @@ impl Scene {
                 drop(tx.send(nums));
             })?;
 
-            // console_log!("waiting for done");
 
 
             let done = async move {
