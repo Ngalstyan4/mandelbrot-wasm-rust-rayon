@@ -1,5 +1,4 @@
 # path to wasm-bindgen binary *built from source*
-WASM_BINDGEN=../wasm-bindgen/target/debug/wasm-bindgen
 PKG_DIR=pkg
 FLAGS=--release
 build:
@@ -11,15 +10,17 @@ build:
 	RUSTFLAGS=' -C target-feature=+atomics,+bulk-memory' \
 	cargo build --target wasm32-unknown-unknown $(FLAGS) -Z build-std=std,panic_abort
 	echo "Generating bindings"
-	rm -r pkg
-	$(WASM_BINDGEN) ./target/wasm32-unknown-unknown/release/beh.wasm  --out-dir $(PKG_DIR) --target no-modules
+	rm -rf pkg
+	wasm-pack build --out-dir $(PKG_DIR) --target no-modules --out-name beh
+	#./target/wasm32-unknown-unknown/release/beh.wasm
 
 simd:
 	RUSTFLAGS=' -C target-feature=+atomics,+simd128,+bulk-memory -Cno-vectorize-loops -Cno-vectorize-slp -Copt-level=z -Clinker-flavor=em' \
 	cargo build --target wasm32-unknown-unknown -Z build-std=std,panic_abort
 	echo "Generating bindings"
-	rm -r pkg
-	$(WASM_BINDGEN) ./target/wasm32-unknown-unknown/debug/beh.wasm  --out-dir $(PKG_DIR) --target no-modules
+	rm -rf pkg
+	wasm-pack build  --out-dir $(PKG_DIR) --target no-modules --out-name beh
+	#./target/wasm32-unknown-unknown/debug/beh.wasm
 
 serve:
 	python -m http.server

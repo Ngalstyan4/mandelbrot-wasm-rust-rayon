@@ -42,6 +42,12 @@ pub struct Scene {
     // framebuff: Uint8ClampedArray,
 }
 
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8
+}
+
 #[wasm_bindgen]
 impl Scene {
     /// Creates a new scene from the JSON description in `object`, which we
@@ -130,13 +136,28 @@ impl Scene {
                         if iter < num_iter {
                             let contIter = z.magsq().sqrt().log2().log2();
 
+                            // FIXME: extract constant, or use HSL -> Convert the HSL values to RGB
                             let v:u8 =
                                 if color_mode == 0 {((num_iter as f64 - iter as f64)*255./(num_iter) as f64) as u8 + (contIter - iter as f64) as u8}
                                 else if color_mode == 1 {((iter as f64 - contIter as f64)*255./(num_iter) as f64) as u8}
                                 else {255};
-                            chunk[0] = v;
-                            chunk[1] = v;
-                            chunk[2] = v;
+                            // use palette for colors
+                            let palette = vec![
+                                Color { r: 255, g: 0, b: 0 },
+                                Color { r: 0, g: 255, b: 0 },
+                                Color { r: 0, g: 0, b: 0 }];
+                            let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len() - 1) as f32);
+                            let interation_percent_int: u32 = iteration_percentage.floor().to_int_unchecked();
+                            let color1: &Color = &palette[interation_percent_int as usize];
+                            let color2: &Color = &palette[interation_percent_int as usize];
+                            let ratio = (iteration_percentage % 1.0) as f32;
+                            // fixme
+                            let r = (((color2.r - color1.r) as f32) * ratio + (color1.r  as f32)).floor().to_int_unchecked();
+                            let g = (((color2.g - color1.g) as f32) * ratio + (color1.g  as f32)).floor().to_int_unchecked();
+                            let b = (((color2.b - color1.b) as f32) * ratio + (color1.b  as f32)).floor().to_int_unchecked();
+                            chunk[0] = r;
+                            chunk[1] = g;
+                            chunk[2] = b;
                         } else {
                             chunk[0] = 0;
                             chunk[1] = 0;

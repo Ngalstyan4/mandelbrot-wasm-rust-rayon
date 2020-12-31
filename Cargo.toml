@@ -45,3 +45,6 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 0
+
+[net]
+git-fetch-with-cli = true   # use the `git` executable for git operations
