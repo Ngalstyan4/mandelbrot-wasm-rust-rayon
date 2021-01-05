@@ -42,6 +42,7 @@ pub struct Scene {
     // framebuff: Uint8ClampedArray,
 }
 
+#[derive(Debug, Copy, Clone)]
 struct Color {
     r: u8,
     g: u8,
@@ -90,6 +91,48 @@ impl Scene {
     //     42
     // }
 
+    unsafe fn convert_to_color(num_iter: i32, mut iter: i32) -> Color {
+        fn intmin(a: u32, b: u32) -> u32 {
+            if a < b { return a } else { return b }
+        }
+        fn intmin_u8(a: u8, b: u8) -> u8 {
+            if a < b { return a } else { return b }
+        }
+        fn max_f32(a: f32, b: f32) -> f32 {
+            if a > b { return a } else { return b }
+        }
+        unsafe fn color_int(color1v: u8, color2v: u8, ratio: f32) -> u8 {
+            return intmin_u8(max_f32(0., ((color2v as f32 - color1v as f32) * ratio + (color1v as f32)).floor()).to_int_unchecked(), 255);
+        }
+        let palette = vec![
+            Color { r: 255, g: 0, b: 0 },
+            Color { r: 0, g: 255, b: 0 },
+            Color { r: 0, g: 0, b: 255 }];
+        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * (palette.len() as f32);
+        let interation_percent_int: u32 = intmin((iteration_percentage).floor().to_int_unchecked(), palette.len() as u32 - 1 as u32);
+        let color1: &Color = &palette[(interation_percent_int as usize) % palette.len()];
+        let color2: &Color = &palette[(interation_percent_int as usize + (1 as usize)) % palette.len()];
+        let ratio = (iteration_percentage % 1.0) as f32;
+        let r = color_int(color1.r, color2.r, ratio);
+        let g = color_int(color1.g, color2.g, ratio);
+        let b = color_int(color1.b, color2.b, ratio);
+        return Color { r: r, g: g, b: b };
+    }
+    unsafe fn create_color_cache() -> HashMap<i32, Color> {
+        let mut cache = HashMap::new();
+        let max_iter = 255;
+        for iter in 0..max_iter {
+            cache.insert(iter, Scene::convert_to_color(max_iter, iter));
+        }
+        return cache;
+    }
+
+    fn convert_to_color_cached(num_iter: i32, iter: i32,
+                               color_cache: &HashMap<i32, Color>) -> Color {
+        *color_cache.get(&iter)
+            .unwrap_or(& Color { r: 0, g: 0, b: 0 })
+    }
+
 
     /// Renders this scene with the provided concurrency and worker pool.
     ///
@@ -115,6 +158,8 @@ impl Scene {
 
         // unsafe{self._dot_simd();}
         unsafe {
+            let color_cache: HashMap<i32, Color> = Scene::create_color_cache();
+
             let (tx, rx) = oneshot::channel();
             pool.run(move || {
                 thread_pool.install(|| {
@@ -136,32 +181,33 @@ impl Scene {
                         if iter < num_iter {
                             let contIter = z.magsq().sqrt().log2().log2();
 
-                            // FIXME: extract constant, or use HSL -> Convert the HSL values to RGB
                             let v:u8 =
                                 if color_mode == 0 {((num_iter as f64 - iter as f64)*255./(num_iter) as f64) as u8 + (contIter - iter as f64) as u8}
                                 else if color_mode == 1 {((iter as f64 - contIter as f64)*255./(num_iter) as f64) as u8}
                                 else {255};
-                            // use palette for colors
-                            let palette = vec![
-                                Color { r: 255, g: 0, b: 0 },
-                                Color { r: 0, g: 255, b: 0 },
-                                Color { r: 0, g: 0, b: 0 }];
-                            let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len() - 1) as f32);
-                            let interation_percent_int: u32 = iteration_percentage.floor().to_int_unchecked();
-                            let color1: &Color = &palette[interation_percent_int as usize];
-                            let color2: &Color = &palette[interation_percent_int as usize];
-                            let ratio = (iteration_percentage % 1.0) as f32;
-                            // fixme
-                            let r = (((color2.r - color1.r) as f32) * ratio + (color1.r  as f32)).floor().to_int_unchecked();
-                            let g = (((color2.g - color1.g) as f32) * ratio + (color1.g  as f32)).floor().to_int_unchecked();
-                            let b = (((color2.b - color1.b) as f32) * ratio + (color1.b  as f32)).floor().to_int_unchecked();
-                            chunk[0] = r;
-                            chunk[1] = g;
-                            chunk[2] = b;
+                            if false {
+                                chunk[0] = v;
+                                chunk[1] = v;
+                                chunk[2] = v;
+                            } else {
+                                // use palette for colors
+                                let c = Scene::convert_to_color_cached(num_iter, iter, &color_cache);
+                                chunk[0] = c.r;
+                                chunk[1] = c.g;
+                                chunk[2] = c.b;
+                            }
                         } else {
-                            chunk[0] = 0;
-                            chunk[1] = 0;
-                            chunk[2] = 0;
+                            if false {
+                                chunk[0] = 0;
+                                chunk[1] = 0;
+                                chunk[2] = 0;
+                            } else {
+                                // use palette for colors
+                                let c = Scene::convert_to_color_cached(num_iter, 0, &color_cache);
+                                chunk[0] = c.r;
+                                chunk[1] = c.g;
+                                chunk[2] = c.b;
+                            }
                         }
                         chunk[3] = 255;
                         if (color_threads) {
@@ -223,6 +269,7 @@ use std::ops::{Mul, Add};
 use rayon::ThreadPool;
 use wasm_bindgen::__rt::std::sync::Mutex;
 use js_sys::Math::random;
+use wasm_bindgen::__rt::std::collections::HashMap;
 
 impl Mul for Complex {
     type Output = Complex;
