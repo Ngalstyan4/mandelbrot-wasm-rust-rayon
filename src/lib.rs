@@ -105,10 +105,20 @@ impl Scene {
             return intmin_u8(max_f32(0., ((color2v as f32 - color1v as f32) * ratio + (color1v as f32)).floor()).to_int_unchecked(), 255);
         }
         let palette = vec![
-            Color { r: 255, g: 0, b: 0 },
-            Color { r: 0, g: 255, b: 0 },
-            Color { r: 0, g: 0, b: 255 }];
-        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * (palette.len() as f32);
+            // Indigo (Hex: #2E2B5F) (RGB: 46, 43, 95)
+            //Color { r: 46, g: 43, b: 95 },
+            // Blue (web color) (Hex: #0000FF) (RGB: 0, 0, 255)
+            Color { r: 10, g: 10, b: 60 },
+            // Green (X11) (Electric Green) (HTML/CSS “Lime”) (Color wheel green) (Hex: #00FF00) (RGB: 0, 255, 0)
+            Color { r: 20, g: 200, b: 20 },
+            // Yellow (web color) (Hex: #FFFF00) (RGB: 255, 255, 0)
+            Color { r: 200, g: 200, b: 20 },
+            // Orange (color wheel Orange) (Hex: #FF7F00) (RGB: 255, 127, 0)
+            Color { r: 255, g: 165, b: 20 },
+            // Red (Hex: #FF0000) (RGB: 255, 0, 0)
+            Color { r: 255, g: 20, b: 20 },
+            ];
+        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len()) as f32);
         let interation_percent_int: u32 = intmin((iteration_percentage).floor().to_int_unchecked(), palette.len() as u32 - 1 as u32);
         let color1: &Color = &palette[(interation_percent_int as usize) % palette.len()];
         let color2: &Color = &palette[(interation_percent_int as usize + (1 as usize)) % palette.len()];
@@ -120,7 +130,7 @@ impl Scene {
     }
     unsafe fn create_color_cache() -> HashMap<i32, Color> {
         let mut cache = HashMap::new();
-        let max_iter = 255;
+        let max_iter = 700;
         for iter in 0..max_iter {
             cache.insert(iter, Scene::convert_to_color(max_iter, iter));
         }
