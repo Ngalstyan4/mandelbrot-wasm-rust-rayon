@@ -105,42 +105,73 @@ impl Scene {
             return intmin_u8(max_f32(0., ((color2v as f32 - color1v as f32) * ratio + (color1v as f32)).floor()).to_int_unchecked(), 255);
         }
         let palette = vec![
-            // Indigo (Hex: #2E2B5F) (RGB: 46, 43, 95)
-            //Color { r: 46, g: 43, b: 95 },
+            //Color { r: 20, g: 20, b: 20 },
             // Blue (web color) (Hex: #0000FF) (RGB: 0, 0, 255)
             Color { r: 10, g: 10, b: 60 },
+            // Indigo (Hex: #2E2B5F) (RGB: 46, 43, 95)
+            Color { r: 46, g: 43, b: 95 },
+            // purple
+            Color { r: 95, g: 39, b: 114 },
             // Green (X11) (Electric Green) (HTML/CSS “Lime”) (Color wheel green) (Hex: #00FF00) (RGB: 0, 255, 0)
             Color { r: 20, g: 200, b: 20 },
             // Yellow (web color) (Hex: #FFFF00) (RGB: 255, 255, 0)
-            Color { r: 200, g: 200, b: 20 },
+            Color { r: 253, g: 180, b: 70 },
+            Color { r: 255, g: 255, b: 200 },
+            //Color { r: 255, g: 255, b: 255 },
             // Orange (color wheel Orange) (Hex: #FF7F00) (RGB: 255, 127, 0)
-            Color { r: 255, g: 165, b: 20 },
+            // Color { r: 255, g: 165, b: 20 },
             // Red (Hex: #FF0000) (RGB: 255, 0, 0)
-            Color { r: 255, g: 20, b: 20 },
+            // Color { r: 255, g: 20, b: 20 },
             ];
-        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len()) as f32);
-        let interation_percent_int: u32 = intmin((iteration_percentage).floor().to_int_unchecked(), palette.len() as u32 - 1 as u32);
-        let color1: &Color = &palette[(interation_percent_int as usize) % palette.len()];
-        let color2: &Color = &palette[(interation_percent_int as usize + (1 as usize)) % palette.len()];
+        let max_pallete_idx = palette.len() as u32 - 1 as u32;
+        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len() -1 ) as f32);
+        let interation_percent_int: u32 = intmin((iteration_percentage).floor().to_int_unchecked(), max_pallete_idx);
+        let interation_percent_int_plus_1: u32 = intmin(interation_percent_int + (1 as u32), max_pallete_idx);
+        let color1: &Color = &palette[(interation_percent_int as usize)];
+        let color2: &Color = &palette[(interation_percent_int_plus_1 as usize)];
         let ratio = (iteration_percentage % 1.0) as f32;
         let r = color_int(color1.r, color2.r, ratio);
         let g = color_int(color1.g, color2.g, ratio);
         let b = color_int(color1.b, color2.b, ratio);
         return Color { r: r, g: g, b: b };
     }
-    unsafe fn create_color_cache() -> HashMap<i32, Color> {
+    unsafe fn create_color_cache(max_iter: i32) -> HashMap<i32, Color> {
         let mut cache = HashMap::new();
-        let max_iter = 700;
         for iter in 0..max_iter {
             cache.insert(iter, Scene::convert_to_color(max_iter, iter));
         }
         return cache;
     }
 
-    fn convert_to_color_cached(num_iter: i32, iter: i32,
+    fn convert_to_color_cached(color_mode: u8,
+                               z: Complex,
+                               max_iter: i32,
+                               iter: i32,
                                color_cache: &HashMap<i32, Color>) -> Color {
-        *color_cache.get(&iter)
-            .unwrap_or(& Color { r: 0, g: 0, b: 0 })
+        if (color_mode == 3) {
+            let vvv: i32 = if iter < max_iter {
+                let contIter: f64 = z.magsq().sqrt().log2().log2();
+                (iter as f64 - contIter as f64) as i32
+            } else { max_iter as i32};
+            return *color_cache.get(&vvv)
+                .unwrap_or(&Color { r: 255, g: 255, b: 200 })
+        } else if (color_mode == 2) {
+            let vvv: i32 = if iter < max_iter {
+                let contIter: f64 = z.magsq().sqrt().log2().log2();
+                max_iter - (iter as f64 - contIter as f64) as i32
+            } else { max_iter as i32};
+            return *color_cache.get(&vvv)
+                .unwrap_or(&Color { r: 10, g: 10, b: 60 })
+        } else {
+            let v: u8 = if iter < max_iter {
+                let contIter: f64 = z.magsq().sqrt().log2().log2();
+                let vv = if color_mode == 0 { ((max_iter as f64 - iter as f64) * 255. / (max_iter) as f64) as u8 + (contIter - iter as f64) as u8 }
+                else if (color_mode == 1) { ((iter as f64 - contIter as f64) * 255. / (max_iter) as f64) as u8 }
+                else { 255 };
+                vv
+            } else { if color_mode == 0 { (0 as u8) } else { 255 as u8 } };
+            return Color { r: v, g: v, b: v };
+        }
     }
 
 
@@ -168,7 +199,7 @@ impl Scene {
 
         // unsafe{self._dot_simd();}
         unsafe {
-            let color_cache: HashMap<i32, Color> = Scene::create_color_cache();
+            let color_cache: HashMap<i32, Color> = Scene::create_color_cache(num_iter);
 
             let (tx, rx) = oneshot::channel();
             pool.run(move || {
@@ -188,37 +219,10 @@ impl Scene {
                             z = z * z + cmlx;
                             if z.magsq() > 4. { break }
                         }
-                        if iter < num_iter {
-                            let contIter = z.magsq().sqrt().log2().log2();
-
-                            let v:u8 =
-                                if color_mode == 0 {((num_iter as f64 - iter as f64)*255./(num_iter) as f64) as u8 + (contIter - iter as f64) as u8}
-                                else if color_mode == 1 {((iter as f64 - contIter as f64)*255./(num_iter) as f64) as u8}
-                                else {255};
-                            if false {
-                                chunk[0] = v;
-                                chunk[1] = v;
-                                chunk[2] = v;
-                            } else {
-                                // use palette for colors
-                                let c = Scene::convert_to_color_cached(num_iter, iter, &color_cache);
-                                chunk[0] = c.r;
-                                chunk[1] = c.g;
-                                chunk[2] = c.b;
-                            }
-                        } else {
-                            if false {
-                                chunk[0] = 0;
-                                chunk[1] = 0;
-                                chunk[2] = 0;
-                            } else {
-                                // use palette for colors
-                                let c = Scene::convert_to_color_cached(num_iter, 0, &color_cache);
-                                chunk[0] = c.r;
-                                chunk[1] = c.g;
-                                chunk[2] = c.b;
-                            }
-                        }
+                        let c = Scene::convert_to_color_cached(color_mode, z, num_iter, iter, &color_cache);
+                        chunk[0] = c.r;
+                        chunk[1] = c.g;
+                        chunk[2] = c.b;
                         chunk[3] = 255;
                         if (color_threads) {
                             let thread_id = thread_pool.current_thread_index().unwrap();

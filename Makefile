@@ -28,3 +28,6 @@ serve:
 
 deploy:
 	scp -r index.html  *.js pkg narekg@cycles.cs.princeton.edu:/u/narekg/public_html/wasm_rayon/
+
+deployv:
+	scp -r index.html  *.js *.php pkg "${MY_WEB_SERVER}"
