@@ -6,6 +6,7 @@ use js_sys::{Promise, Uint8ClampedArray, WebAssembly};
 use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;// needed for unchecked_into
+use wasm_bindgen::__rt::std::collections::HashMap;
 use colorous;
 use colorous::Color;
 
@@ -234,7 +235,6 @@ use std::ops::{Mul, Add};
 use rayon::ThreadPool;
 use wasm_bindgen::__rt::std::sync::Mutex;
 use js_sys::Math::random;
-use wasm_bindgen::__rt::std::collections::HashMap;
 
 impl Mul for Complex {
     type Output = Complex;
