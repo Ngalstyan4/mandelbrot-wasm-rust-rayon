@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;// needed for unchecked_into
 use colorous;
+use colorous::Color;
 
 macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
@@ -43,12 +44,6 @@ pub struct Scene {
     // framebuff: Uint8ClampedArray,
 }
 
-#[derive(Debug, Copy, Clone)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8
-}
 
 #[wasm_bindgen]
 impl Scene {
@@ -94,8 +89,7 @@ impl Scene {
 
     fn convert_to_color(max_iter: i32, mut iter: i32) -> Color {
         let gradient = colorous::TURBO; //colorous::INFERNO;
-        let c = gradient.eval_rational((max_iter - iter) as usize, max_iter as usize);
-        return Color { r: c.r, g: c.g, b: c.b };
+        return gradient.eval_rational((max_iter - iter) as usize, max_iter as usize);
     }
     unsafe fn create_color_cache(max_iter: i32) -> HashMap<i32, Color> {
         let mut cache = HashMap::new();
