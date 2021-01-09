@@ -5,6 +5,7 @@ build:
 	echo "cross compiling to .wasm and generating bindings"
 	rm -rf pkg
 	# see .cargo/config.toml for all flags used
+	# this is because some flags seem not to work with wasm-pack when passed via --target or via RUSTFLAGS instead of .cargo/config.toml
 	RUSTFLAGS=' -C target-feature=+atomics,+bulk-memory' wasm-pack --verbose build --target no-modules --out-dir $(PKG_DIR) --out-name beh
 
 simd:
