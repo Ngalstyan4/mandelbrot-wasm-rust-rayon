@@ -6,6 +6,7 @@ use js_sys::{Promise, Uint8ClampedArray, WebAssembly};
 use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;// needed for unchecked_into
+use colorous;
 
 macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
@@ -91,53 +92,14 @@ impl Scene {
     //     42
     // }
 
-    unsafe fn convert_to_color(num_iter: i32, mut iter: i32) -> Color {
-        fn intmin(a: u32, b: u32) -> u32 {
-            if a < b { return a } else { return b }
-        }
-        fn intmin_u8(a: u8, b: u8) -> u8 {
-            if a < b { return a } else { return b }
-        }
-        fn max_f32(a: f32, b: f32) -> f32 {
-            if a > b { return a } else { return b }
-        }
-        unsafe fn color_int(color1v: u8, color2v: u8, ratio: f32) -> u8 {
-            return intmin_u8(max_f32(0., ((color2v as f32 - color1v as f32) * ratio + (color1v as f32)).floor()).to_int_unchecked(), 255);
-        }
-        let palette = vec![
-            //Color { r: 20, g: 20, b: 20 },
-            // Blue (web color) (Hex: #0000FF) (RGB: 0, 0, 255)
-            Color { r: 10, g: 10, b: 60 },
-            // Indigo (Hex: #2E2B5F) (RGB: 46, 43, 95)
-            Color { r: 46, g: 43, b: 95 },
-            // purple
-            Color { r: 95, g: 39, b: 114 },
-            // Green (X11) (Electric Green) (HTML/CSS “Lime”) (Color wheel green) (Hex: #00FF00) (RGB: 0, 255, 0)
-            Color { r: 20, g: 200, b: 20 },
-            // Yellow (web color) (Hex: #FFFF00) (RGB: 255, 255, 0)
-            Color { r: 253, g: 180, b: 70 },
-            Color { r: 255, g: 255, b: 200 },
-            //Color { r: 255, g: 255, b: 255 },
-            // Orange (color wheel Orange) (Hex: #FF7F00) (RGB: 255, 127, 0)
-            // Color { r: 255, g: 165, b: 20 },
-            // Red (Hex: #FF0000) (RGB: 255, 0, 0)
-            // Color { r: 255, g: 20, b: 20 },
-            ];
-        let max_pallete_idx = palette.len() as u32 - 1 as u32;
-        let iteration_percentage: f32 = (iter as f32) / (num_iter as f32) * ((palette.len() -1 ) as f32);
-        let interation_percent_int: u32 = intmin((iteration_percentage).floor().to_int_unchecked(), max_pallete_idx);
-        let interation_percent_int_plus_1: u32 = intmin(interation_percent_int + (1 as u32), max_pallete_idx);
-        let color1: &Color = &palette[(interation_percent_int as usize)];
-        let color2: &Color = &palette[(interation_percent_int_plus_1 as usize)];
-        let ratio = (iteration_percentage % 1.0) as f32;
-        let r = color_int(color1.r, color2.r, ratio);
-        let g = color_int(color1.g, color2.g, ratio);
-        let b = color_int(color1.b, color2.b, ratio);
-        return Color { r: r, g: g, b: b };
+    fn convert_to_color(max_iter: i32, mut iter: i32) -> Color {
+        let gradient = colorous::TURBO; //colorous::INFERNO;
+        let c = gradient.eval_rational((max_iter - iter) as usize, max_iter as usize);
+        return Color { r: c.r, g: c.g, b: c.b };
     }
     unsafe fn create_color_cache(max_iter: i32) -> HashMap<i32, Color> {
         let mut cache = HashMap::new();
-        for iter in 0..max_iter {
+        for iter in 0..(max_iter+3) {
             cache.insert(iter, Scene::convert_to_color(max_iter, iter));
         }
         return cache;
@@ -149,19 +111,14 @@ impl Scene {
                                iter: i32,
                                color_cache: &HashMap<i32, Color>) -> Color {
         if (color_mode == 3) {
-            let vvv: i32 = if iter < max_iter {
-                let contIter: f64 = z.magsq().sqrt().log2().log2();
-                (iter as f64 - contIter as f64) as i32
-            } else { max_iter as i32};
-            return *color_cache.get(&vvv)
-                .unwrap_or(&Color { r: 255, g: 255, b: 200 })
+            let iterValue: i32 = if iter < max_iter { iter } else { max_iter };
+            return *color_cache.get(&iterValue).unwrap()
         } else if (color_mode == 2) {
             let vvv: i32 = if iter < max_iter {
                 let contIter: f64 = z.magsq().sqrt().log2().log2();
                 max_iter - (iter as f64 - contIter as f64) as i32
             } else { max_iter as i32};
-            return *color_cache.get(&vvv)
-                .unwrap_or(&Color { r: 10, g: 10, b: 60 })
+            return *color_cache.get(&vvv).unwrap()
         } else {
             let v: u8 = if iter < max_iter {
                 let contIter: f64 = z.magsq().sqrt().log2().log2();
