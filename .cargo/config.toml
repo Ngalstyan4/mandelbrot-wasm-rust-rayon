@@ -1,0 +1,9 @@
+[unstable]
+build-std = ['std', 'panic_abort']
+
+[build]
+# these rust flags are necessary to make sure:
+# *bulk-memory: .wasm module and .wasm memory can be passed between threads
+# *atomics: the invariant that threads only use atomic instructions with shared memory is preserved
+rustflags = "'target-feature=+atomics,+bulk-memory'"
+target = "wasm32-unknown-unknown"

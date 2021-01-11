@@ -6,6 +6,9 @@ use js_sys::{Promise, Uint8ClampedArray, WebAssembly};
 use rayon::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;// needed for unchecked_into
+use wasm_bindgen::__rt::std::collections::HashMap;
+use colorous;
+use colorous::Color;
 
 macro_rules! console_log {
     ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
@@ -41,6 +44,7 @@ pub struct Scene {
     framebuffer: std::sync::Arc<FrameBuffer>,
     // framebuff: Uint8ClampedArray,
 }
+
 
 #[wasm_bindgen]
 impl Scene {
@@ -84,6 +88,44 @@ impl Scene {
     //     42
     // }
 
+    fn convert_to_color(max_iter: i32, mut iter: i32) -> Color {
+        let gradient = colorous::TURBO; //colorous::INFERNO;
+        return gradient.eval_rational((max_iter - iter) as usize, max_iter as usize);
+    }
+    unsafe fn create_color_cache(max_iter: i32) -> HashMap<i32, Color> {
+        let mut cache = HashMap::new();
+        for iter in 0..(max_iter+3) {
+            cache.insert(iter, Scene::convert_to_color(max_iter, iter));
+        }
+        return cache;
+    }
+
+    fn convert_to_color_cached(color_mode: u8,
+                               z: Complex,
+                               max_iter: i32,
+                               iter: i32,
+                               color_cache: &HashMap<i32, Color>) -> Color {
+        if (color_mode == 3) {
+            let iterValue: i32 = if iter < max_iter { iter } else { max_iter };
+            return *color_cache.get(&iterValue).unwrap()
+        } else if (color_mode == 2) {
+            let vvv: i32 = if iter < max_iter {
+                let contIter: f64 = z.magsq().sqrt().log2().log2();
+                max_iter - (iter as f64 - contIter as f64) as i32
+            } else { max_iter as i32};
+            return *color_cache.get(&vvv).unwrap()
+        } else {
+            let v: u8 = if iter < max_iter {
+                let contIter: f64 = z.magsq().sqrt().log2().log2();
+                let vv = if color_mode == 0 { ((max_iter as f64 - iter as f64) * 255. / (max_iter) as f64) as u8 + (contIter - iter as f64) as u8 }
+                else if (color_mode == 1) { ((iter as f64 - contIter as f64) * 255. / (max_iter) as f64) as u8 }
+                else { 255 };
+                vv
+            } else { if color_mode == 0 { (0 as u8) } else { 255 as u8 } };
+            return Color { r: v, g: v, b: v };
+        }
+    }
+
 
     /// Renders this scene with the provided concurrency and worker pool.
     ///
@@ -109,6 +151,8 @@ impl Scene {
 
         // unsafe{self._dot_simd();}
         unsafe {
+            let color_cache: HashMap<i32, Color> = Scene::create_color_cache(num_iter);
+
             let (tx, rx) = oneshot::channel();
             pool.run(move || {
                 thread_pool.install(|| {
@@ -127,21 +171,10 @@ impl Scene {
                             z = z * z + cmlx;
                             if z.magsq() > 4. { break }
                         }
-                        if iter < num_iter {
-                            let contIter = z.magsq().sqrt().log2().log2();
-
-                            let v:u8 =
-                                if color_mode == 0 {((num_iter as f64 - iter as f64)*255./(num_iter) as f64) as u8 + (contIter - iter as f64) as u8}
-                                else if color_mode == 1 {((iter as f64 - contIter as f64)*255./(num_iter) as f64) as u8}
-                                else {255};
-                            chunk[0] = v;
-                            chunk[1] = v;
-                            chunk[2] = v;
-                        } else {
-                            chunk[0] = 0;
-                            chunk[1] = 0;
-                            chunk[2] = 0;
-                        }
+                        let c = Scene::convert_to_color_cached(color_mode, z, num_iter, iter, &color_cache);
+                        chunk[0] = c.r;
+                        chunk[1] = c.g;
+                        chunk[2] = c.b;
                         chunk[3] = 255;
                         if (color_threads) {
                             let thread_id = thread_pool.current_thread_index().unwrap();
